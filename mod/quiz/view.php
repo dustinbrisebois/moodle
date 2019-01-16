@@ -52,6 +52,8 @@ if ($id) {
     }
 }
 
+$PAGE->set_url('/mod/quiz/view.php', Array('id' => $cm->id));
+
 // Check login and get context.
 require_login($course, false, $cm);
 $context = context_module::instance($cm->id);
