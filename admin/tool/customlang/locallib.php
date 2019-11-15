@@ -141,7 +141,10 @@ class tool_customlang_utils {
                     $progressbar->update_full($donepercent, $strinprogress);
                 }
 
-                if (isset($current[$stringid])) {
+                $lcurrent = array_change_key_case($current, CASE_LOWER);
+                if (isset($current[$stringid]) || isset($lcurrent[$stringid])) {
+                    $current[$stringid] = !isset($current[$stringid]) ? $lcurrent[$stringid] : $current[$stringid];
+
                     $needsupdate     = false;
                     $currentoriginal = $current[$stringid]->original;
                     $currentmaster   = $current[$stringid]->master;
