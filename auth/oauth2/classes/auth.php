@@ -36,6 +36,7 @@ use core\oauth2\client;
 
 require_once($CFG->libdir.'/authlib.php');
 require_once($CFG->dirroot.'/user/lib.php');
+require_once($CFG->dirroot.'/user/profile/lib.php');
 
 /**
  * Plugin for oauth2 authentication.
@@ -610,5 +611,31 @@ class auth extends \auth_plugin_base {
         complete_user_login($user);
         $this->update_picture($user);
         redirect($redirecturl);
+    }
+
+    /**
+     * Returns information on how the specified user can change their password.
+     * The password of the oauth2 accounts is not stored in Moodle.
+     *
+     * @param stdClass $user A user object
+     * @return string[] An array of strings with keys subject and message
+     */
+    public function get_password_change_info(stdClass $user) : array {
+        $site = get_site();
+
+        $data = new stdClass();
+        $data->firstname = $user->firstname;
+        $data->lastname  = $user->lastname;
+        $data->username  = $user->username;
+        $data->sitename  = format_string($site->fullname);
+        $data->admin     = generate_email_signoff();
+
+        $message = get_string('emailpasswordchangeinfo', 'auth_oauth2', $data);
+        $subject = get_string('emailpasswordchangeinfosubject', 'auth_oauth2', format_string($site->fullname));
+
+        return [
+            'subject' => $subject,
+            'message' => $message
+        ];
     }
 }

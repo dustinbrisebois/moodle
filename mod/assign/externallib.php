@@ -115,7 +115,8 @@ class mod_assign_external extends external_api {
             try {
                 $context = context_module::instance($cm->id);
                 self::validate_context($context);
-                require_capability('mod/assign:grade', $context);
+                $assign = new assign($context, null, null);
+                $assign->require_view_grades();
             } catch (Exception $e) {
                 $requestedassignmentids = array_diff($requestedassignmentids, array($cm->instance));
                 $warning = array();
@@ -211,7 +212,7 @@ class mod_assign_external extends external_api {
                 'attemptnumber'     => new external_value(PARAM_INT, 'attempt number'),
                 'timecreated'       => new external_value(PARAM_INT, 'grade creation time'),
                 'timemodified'      => new external_value(PARAM_INT, 'grade last modified time'),
-                'grader'            => new external_value(PARAM_INT, 'grader'),
+                'grader'            => new external_value(PARAM_INT, 'grader, -1 if grader is hidden'),
                 'grade'             => new external_value(PARAM_TEXT, 'grade'),
                 'gradefordisplay'   => new external_value(PARAM_RAW, 'grade rendered into a format suitable for display',
                                                             VALUE_OPTIONAL),
@@ -461,9 +462,10 @@ class mod_assign_external extends external_api {
 
                     // Return or not intro and file attachments depending on the plugin settings.
                     if ($assign->show_intro()) {
-
-                        list($assignment['intro'], $assignment['introformat']) = external_format_text($module->intro,
-                            $module->introformat, $context->id, 'mod_assign', 'intro', null);
+                        $options = array('noclean' => true);
+                        list($assignment['intro'], $assignment['introformat']) =
+                            external_format_text($module->intro, $module->introformat, $context->id, 'mod_assign', 'intro', null,
+                                $options);
                         $assignment['introfiles'] = external_util::get_area_files($context->id, 'mod_assign', 'intro', false,
                                                                                     false);
 
@@ -734,8 +736,8 @@ class mod_assign_external extends external_api {
             try {
                 $context = context_module::instance($cm->id);
                 self::validate_context($context);
-                require_capability('mod/assign:grade', $context);
                 $assign = new assign($context, null, null);
+                $assign->require_view_grades();
                 $assigns[] = $assign;
             } catch (Exception $e) {
                 $warnings[] = array(
@@ -2349,6 +2351,8 @@ class mod_assign_external extends external_api {
             throw new required_capability_exception($context, 'mod/assign:viewgrades', 'nopermission', '');
         }
 
+        $assign->update_effective_access($user->id);
+
         $gradingsummary = $lastattempt = $feedback = $previousattempts = null;
 
         // Get the renderable since it contais all the info we need.
@@ -2383,7 +2387,7 @@ class mod_assign_external extends external_api {
             $result['gradingsummary'] = $gradingsummary;
         }
         // Show the grader's identity if 'Hide Grader' is disabled or has the 'Show Hidden Grader' capability.
-        $showgradername = (has_capability('mod/assign:showhiddengrader', $context, $user) or
+        $showgradername = (has_capability('mod/assign:showhiddengrader', $context) or
             !$assign->is_hidden_grader());
 
         // Did we submit anything?
@@ -2432,7 +2436,7 @@ class mod_assign_external extends external_api {
         if ($feedback) {
             if ($feedback->grade) {
                 if (!$showgradername) {
-                    $feedback->grade->grader = false;
+                    $feedback->grade->grader = -1;
                 }
                 $feedbackplugins = $assign->get_feedback_plugins();
                 $feedback->plugins = self::get_plugins_data($assign, $feedbackplugins, $feedback->grade);
@@ -2473,7 +2477,7 @@ class mod_assign_external extends external_api {
                 if ($grade) {
                     // From object to id.
                     if (!$showgradername) {
-                        $grade->grader = false;
+                        $grade->grader = -1;
                     } else {
                         $grade->grader = $grade->grader->id;
                     }
@@ -2508,8 +2512,10 @@ class mod_assign_external extends external_api {
                         'submissionsenabled' => new external_value(PARAM_BOOL, 'Whether submissions are enabled or not.'),
                         'submissionssubmittedcount' => new external_value(PARAM_INT, 'Number of submissions in submitted status.'),
                         'submissionsneedgradingcount' => new external_value(PARAM_INT, 'Number of submissions that need grading.'),
-                        'warnofungroupedusers' => new external_value(PARAM_BOOL, 'Whether we need to warn people that there
-                                                                        are users without groups.'),
+                        'warnofungroupedusers' => new external_value(PARAM_ALPHA, 'Whether we need to warn people that there
+                                                                        are users without groups (\'warningrequired\'), warn
+                                                                        people there are users who will submit in the default
+                                                                        group (\'warningoptional\') or no warning (\'\').'),
                     ), 'Grading information.', VALUE_OPTIONAL
                 ),
                 'lastattempt' => new external_single_structure(
@@ -2818,10 +2824,10 @@ class mod_assign_external extends external_api {
             'requiregrading' => $participant->requiregrading,
             'grantedextension' => $participant->grantedextension,
             'blindmarking' => $assign->is_blind_marking(),
-            'allowsubmissionsfromdate' => $assign->get_instance()->allowsubmissionsfromdate,
-            'duedate' => $assign->get_instance()->duedate,
-            'cutoffdate' => $assign->get_instance()->cutoffdate,
-            'duedatestr' => userdate($assign->get_instance()->duedate, get_string('strftimedatetime', 'langconfig')),
+            'allowsubmissionsfromdate' => $assign->get_instance($userid)->allowsubmissionsfromdate,
+            'duedate' => $assign->get_instance($userid)->duedate,
+            'cutoffdate' => $assign->get_instance($userid)->cutoffdate,
+            'duedatestr' => userdate($assign->get_instance($userid)->duedate, get_string('strftimedatetime', 'langconfig')),
         );
 
         if (!empty($participant->groupid)) {

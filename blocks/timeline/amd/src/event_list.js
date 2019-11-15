@@ -265,7 +265,10 @@ function(
                 return [];
             }
 
-            var calendarEvents = result.events;
+            var calendarEvents = result.events.filter(function(event) {
+                // Do not include events that does not have a due date.
+                return event.eventtype != "open" && event.eventtype != "opensubmission";
+            });
             // We expect to receive limit + 1 events back from the server.
             // Any less means there are no more events to load.
             var loadedAll = calendarEvents.length <= limit;
@@ -325,7 +328,7 @@ function(
         return Str.get_string(
                 'ariaeventlistpagelimit',
                 'block_timeline',
-                $.isArray(pageLimit) ? pageLimit[0] : pageLimit
+                $.isArray(pageLimit) ? pageLimit[0].value : pageLimit
             )
             .then(function(string) {
                 config.ariaLabels.itemsperpage = string;
